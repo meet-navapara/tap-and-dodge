@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Soft plume bloom -->
+    <path
+        android:fillColor="#4439F3FF"
+        android:pathData="M54,72 m-14,0 a14,18 0,1 1,28 0 a14,18 0,1 1,-28 0" />
+    <!-- Plume -->
+    <path
+        android:fillColor="#88FFB36A"
+        android:pathData="M48,70 C46,82 50,92 54,96 C58,92 62,82 60,70 Z" />
+    <path
+        android:fillColor="#CCFFF6D0"
+        android:pathData="M51,70 C50,80 52,88 54,91 C56,88 58,80 57,70 Z" />
+    <!-- Fins -->
+    <path
+        android:fillColor="#1B8CFF"
+        android:pathData="M48,58 C40,64 34,72 36,76 C44,72 48,68 49,64 Z" />
+    <path
+        android:fillColor="#1B8CFF"
+        android:pathData="M60,58 C68,64 74,72 72,76 C64,72 60,68 59,64 Z" />
+    <!-- Hull -->
+    <path
+        android:fillColor="#39F3FF"
+        android:pathData="M54,28 C62,40 63,52 62,66 C54,70 54,70 46,66 C45,52 46,40 54,28 Z" />
+    <!-- Sheen -->
+    <path
+        android:fillColor="#66FFFFFF"
+        android:pathData="M50,34 C48,48 48,58 49,64 C51,56 51,44 52,34 Z" />
+    <!-- Accent belt -->
+    <path
+        android:fillColor="#FFD76A"
+        android:pathData="M48,56 h12 v2.5 h-12 z" />
+    <!-- Canopy -->
+    <path
+        android:fillColor="#CCFFFFFF"
+        android:pathData="M54,42 m-4.5,0 a4.5,5 0,1 1,9 0 a4.5,5 0,1 1,-9 0" />
+</vector>

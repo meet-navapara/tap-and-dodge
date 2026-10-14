@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "474158228172",
+    "project_id": "tapdodge-294f4",
+    "storage_bucket": "tapdodge-294f4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:474158228172:android:061bff8a748d9eb848d869",
+        "android_client_info": {
+          "package_name": "com.ujjwal.tapandodge"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "474158228172-cp470jq9ks5lbar2p6b42ajsgmrrjjtt.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.ujjwal.tapandodge",
+            "certificate_hash": "95c987afdfa7e85b179f93b9016a6d862580763c"
+          }
+        },
+        {
+          "client_id": "474158228172-thgdtuq6drhfun78s7ua29f1rb61qbi3.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBkM3G4i_k9P100uOBb5VndCD0XtAYsSVU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "474158228172-thgdtuq6drhfun78s7ua29f1rb61qbi3.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

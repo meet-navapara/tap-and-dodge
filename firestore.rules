@@ -1,0 +1,34 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+
+      allow create, update: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.data.uid == userId
+        && request.resource.data.keys().hasAll(['uid', 'progress', 'schemaVersion'])
+        && request.resource.data.schemaVersion is int
+        && request.resource.data.schemaVersion >= 1
+        && request.resource.data.schemaVersion <= 10
+        && request.resource.data.progress is map
+        && _validProgress(request.resource.data.progress);
+
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    function _validProgress(p) {
+      return p.keys().hasAll([
+          'bestScore', 'totalCoins', 'unlockedLevel',
+          'highestCompletedLevel', 'campaignComplete'
+        ])
+        && p.bestScore is int && p.bestScore >= 0 && p.bestScore <= 100000000
+        && p.totalCoins is int && p.totalCoins >= 0 && p.totalCoins <= 100000000
+        && p.unlockedLevel is int && p.unlockedLevel >= 1 && p.unlockedLevel <= 50
+        && p.highestCompletedLevel is int
+        && p.highestCompletedLevel >= 0
+        && p.highestCompletedLevel <= 50
+        && p.campaignComplete is bool;
+    }
+  }
+}
