@@ -332,22 +332,24 @@ class _AuthGateScreenState extends State<AuthGateScreen> {
                         ),
                       ),
                     ),
-                    Text(
-                      '·',
-                      style: TextStyle(
-                        color: AppColors.softWhite.withValues(alpha: 0.35),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: _openTerms,
-                      child: Text(
-                        'Terms',
+                    if (LegalConfig.hasHostedTerms) ...[
+                      Text(
+                        '·',
                         style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.softWhite.withValues(alpha: 0.55),
+                          color: AppColors.softWhite.withValues(alpha: 0.35),
                         ),
                       ),
-                    ),
+                      TextButton(
+                        onPressed: _openTerms,
+                        child: Text(
+                          'Terms',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.softWhite.withValues(alpha: 0.55),
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 12),

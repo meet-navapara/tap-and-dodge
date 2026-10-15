@@ -1,16 +1,17 @@
-/// Store / privacy knobs. Replace URLs before Play publish.
+/// Store / privacy knobs — hosted on Firebase Hosting for Play Console.
 class LegalConfig {
   const LegalConfig._();
 
-  /// Hosted privacy policy. Leave empty to use the in-app policy screen only.
-  /// Play Console still expects a public URL when ads are enabled.
-  static const String privacyPolicyUrl = '';
+  /// Public privacy policy (Firebase Hosting).
+  static const String privacyPolicyUrl =
+      'https://tapdodge-294f4.web.app/privacy/';
 
-  /// Hosted terms of service. Optional until Play listing requires it.
-  static const String termsOfServiceUrl = '';
+  /// Public terms of service (Firebase Hosting).
+  static const String termsOfServiceUrl =
+      'https://tapdodge-294f4.web.app/terms/';
 
   static const String appName = 'Tap & Dodge';
-  static const String supportEmail = '';
+  static const String supportEmail = 'navaparameetdev@gmail.com';
 
   static bool get hasHostedPrivacyPolicy => privacyPolicyUrl.trim().isNotEmpty;
 

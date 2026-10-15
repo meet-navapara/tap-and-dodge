@@ -9,11 +9,12 @@
 
 ## Product facts (declare these accurately)
 
-- **Internet required** to play (ads + connectivity gate).
-- **Ads:** rewarded, interstitial, app-open via Google AdMob.
-- **Accounts:** Google Sign-In (cloud save) or Guest (local; survives restarts; optional “Save My Progress”).
+- **Internet required** to play (ads + connectivity gate). Guest can open the account picker offline.
+- **Ads:** rewarded, interstitial, app-open via Google AdMob (**Contains ads**).
+- **Accounts:** Google Sign-In (cloud save) or Guest (local). Guests can **Save My Progress**.
+- **Account deletion:** in-app under Account → Delete Account & Cloud Save (Play requirement).
 - **Progress:** Firestore `users/{uid}` for Google; SharedPreferences for Guest.
-- Deploy [`../firestore.rules`](../firestore.rules) before production. See [`FIREBASE_SETUP.md`](FIREBASE_SETUP.md).
+- Deploy [`../firestore.rules`](../firestore.rules) before production. See [`FIREBASE_SETUP.md`](FIREBASE_SETUP.md) and [`POLICY_COMPLIANCE.md`](POLICY_COMPLIANCE.md).
 
 ## AdMob (do later — still on test IDs)
 
@@ -21,11 +22,12 @@
 2. Create units: Rewarded, Interstitial, App Open.
 3. Replace App ID in `android/app/src/main/AndroidManifest.xml`.
 4. Paste unit IDs in `lib/services/ad_config.dart`.
-5. Set `AdConfig.useTestAds = false`.
-6. Host a public privacy policy URL and set `LegalConfig.privacyPolicyUrl`.
-7. Fill Play **Data safety** for ads / Advertising ID / network.
+5. Set `AdConfig.useTestAds = false` (release builds refuse test IDs).
+6. Host a public privacy policy URL and set `LegalConfig.privacyPolicyUrl` + `supportEmail`.
+7. Fill Play **Data safety** for ads / Advertising ID / account info / cloud save.
+8. Do **not** upload with Google sample AdMob App ID — AdMob can suspend for that.
 
-Until then, keep `useTestAds = true` and Google sample App ID.
+Until then, keep `useTestAds = true` and Google sample App ID **for debug only**.
 
 ## Permissions
 

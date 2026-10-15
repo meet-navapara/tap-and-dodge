@@ -49,6 +49,21 @@ class AdMobService {
       debugPrint('AdMob skipped on web');
       return;
     }
+    // Prevent shipping Google sample / test AdMob IDs in a Play release build.
+    if (kReleaseMode && AdConfig.useTestAds) {
+      throw StateError(
+        'AdConfig.useTestAds is true in a release build. '
+        'Paste production AdMob IDs and set useTestAds=false before Play upload.',
+      );
+    }
+    if (kReleaseMode &&
+        (AdConfig.productionAppId.contains('xxxx') ||
+            AdConfig.productionRewardedUnitId.contains('xxxx'))) {
+      throw StateError(
+        'Production AdMob unit IDs are still placeholders. '
+        'Replace them in ad_config.dart before Play upload.',
+      );
+    }
     try {
       // UMP consent before Mobile Ads init (EEA/UK). Safe with test IDs.
       await consent.gatherConsent();
@@ -236,8 +251,11 @@ class AdMobService {
   }
 
   /// QA helper — grant reward when test ads cannot load (WebView/JS engine).
+  /// Disabled in release to avoid AdMob invalid-traffic / deceptive-reward policy hits.
   RewardedAdOutcome _qaRewardOr(RewardedAdOutcome fallback) {
-    if (AdConfig.useTestAds && AdConfig.qaSimulateRewardedWhenAdFails) {
+    if (!kReleaseMode &&
+        AdConfig.useTestAds &&
+        AdConfig.qaSimulateRewardedWhenAdFails) {
       debugPrint('QA: simulating rewarded success (ad unavailable)');
       return RewardedAdOutcome.rewarded;
     }

@@ -5,7 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../services/legal_config.dart';
 import '../theme/app_theme.dart';
 
-/// In-app privacy policy (required when shipping with ads).
+/// In-app privacy policy (ads + accounts). Host a public URL before Play upload.
 class PrivacyPolicyScreen extends StatelessWidget {
   const PrivacyPolicyScreen({super.key});
 
@@ -17,6 +17,10 @@ class PrivacyPolicyScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final contact = LegalConfig.supportEmail.trim().isEmpty
+        ? 'Set LegalConfig.supportEmail before publishing'
+        : LegalConfig.supportEmail;
+
     return Scaffold(
       body: Container(
         width: double.infinity,
@@ -71,47 +75,78 @@ class PrivacyPolicyScreen extends StatelessWidget {
                             color: AppColors.player,
                           ),
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 8),
                         const Text(
-                          'This game can store progress (high score, coins, unlocks, '
-                          'daily streak, and cosmetic unlocks) locally on your device '
-                          'using on-device preferences. If you sign in with Google, '
-                          'the same progress may also be saved to Firebase so you can '
-                          'restore it on another device. Guest mode keeps data only '
-                          'on this device and may be lost if you uninstall or clear app data.',
+                          'Last updated: for the current app build. '
+                          'This in-app text must match your hosted Play Store '
+                          'privacy policy URL.',
                         ),
                         const SizedBox(height: 12),
                         const Text(
-                          'Internet access is required to play because the game shows '
-                          'advertisements (rewarded, interstitial, and app-open) through '
-                          'Google AdMob. Ad networks may collect advertising identifiers '
-                          'and device/network information to serve and measure ads, '
-                          'subject to your consent choices where required by law.',
+                          '1) Local progress\n'
+                          'Guest and signed-in play store campaign progress '
+                          '(levels, coins, scores, skins, streak) in on-device '
+                          'preferences on this phone.',
                         ),
                         const SizedBox(height: 12),
                         const Text(
-                          'In the European Economic Area, UK, and similar regions, '
-                          'we present Google\'s consent message (UMP) before requesting '
-                          'ads when required. You can change device ad preferences in '
-                          'your system settings.',
+                          '2) Google account (optional)\n'
+                          'If you choose Continue with Google / Save My Progress, '
+                          'we use Firebase Authentication with Google Sign-In. '
+                          'We receive a Firebase user id and may receive your '
+                          'Google display name, email, and profile photo URL from '
+                          'Google. We use these to identify your account and show '
+                          'your name in Account settings.',
                         ),
                         const SizedBox(height: 12),
                         const Text(
-                          'We do not sell your personal information. Crash or analytics '
-                          'tools are not bundled in this build unless listed in a future '
-                          'update of this policy.',
+                          '3) Cloud save\n'
+                          'Signed-in progress is stored in Google Cloud Firestore '
+                          'under your Firebase user id so you can restore on another '
+                          'device. Guest progress is not uploaded to a shared public '
+                          'document.',
                         ),
                         const SizedBox(height: 12),
                         const Text(
-                          'Children: This game is a casual arcade title. If you are a '
-                          'parent/guardian, supervise play and device ad settings. '
-                          'If you publish for under-13 audiences, configure AdMob '
-                          'and Play policies for families accordingly.',
+                          '4) Ads\n'
+                          'Internet is required for gameplay ads. We show rewarded, '
+                          'interstitial, and app-open ads via Google AdMob. AdMob and '
+                          'partners may process advertising ID, IP/device/network '
+                          'signals, and interaction data to serve and measure ads.',
                         ),
                         const SizedBox(height: 12),
-                        Text(
-                          'Contact: ${LegalConfig.supportEmail.isEmpty ? 'add your support email in LegalConfig before publishing' : LegalConfig.supportEmail}',
+                        const Text(
+                          '5) Consent\n'
+                          'In the EEA/UK and similar regions we use Google\'s UMP '
+                          'consent message before personalized ads when required. '
+                          'You can also change device ad settings in system settings.',
                         ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          '6) Account deletion\n'
+                          'Signed-in players can delete their Tap & Dodge account '
+                          'data in Account → Delete Account & Cloud Save. That '
+                          'removes the cloud save and the Firebase Auth link for '
+                          'this app. It does not delete your Google Account.',
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          '7) Children\n'
+                          'This game is a general-audience casual arcade title and '
+                          'is not directed at children under 13. Do not enroll the '
+                          'app in Designed for Families / under-13 programs unless '
+                          'you separately implement full Families / COPPA compliance '
+                          '(including child-directed ad settings).',
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          '8) Selling data\n'
+                          'We do not sell your personal information. Third-party SDKs '
+                          '(AdMob, Firebase, Google Sign-In) process data under their '
+                          'own policies as needed to provide ads and account features.',
+                        ),
+                        const SizedBox(height: 12),
+                        Text('Contact: $contact'),
                         const SizedBox(height: 20),
                         if (LegalConfig.hasHostedPrivacyPolicy)
                           ElevatedButton.icon(
@@ -124,8 +159,9 @@ class PrivacyPolicyScreen extends StatelessWidget {
                           )
                         else
                           Text(
-                            'Tip: set LegalConfig.privacyPolicyUrl to your public '
-                            'policy page before uploading to Google Play.',
+                            'Before Play upload: host this policy on a public HTTPS '
+                            'URL and set LegalConfig.privacyPolicyUrl (Play requires '
+                            'a link when the app uses ads / accounts).',
                             style: TextStyle(
                               color: AppColors.accent.withValues(alpha: 0.9),
                               fontWeight: FontWeight.w600,

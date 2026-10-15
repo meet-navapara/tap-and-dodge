@@ -1,15 +1,18 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <!-- Declared for AdMob / Advertising ID on Android 13+ (Data safety). -->
+    <uses-permission android:name="com.google.android.gms.permission.AD_ID"/>
     <application
         android:label="Tap &amp; Dodge"
         android:enableOnBackInvokedCallback="true"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
-        <!-- AdMob App ID — still Google TEST id. When ready for production:
+        <!-- AdMob App ID — still Google TEST id. Before Play release:
              1) Create app + units at https://apps.admob.com
-             2) Replace this value with your real App ID
-             3) Set AdConfig.useTestAds = false and paste unit IDs -->
+             2) Replace this meta-data value with your REAL App ID
+             3) Set AdConfig.useTestAds = false and paste unit IDs
+             Shipping Google sample IDs in production risks AdMob suspension. -->
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
             android:value="ca-app-pub-3940256099942544~3347511713"/>

@@ -189,6 +189,56 @@ class AuthService {
     status.value = AuthStatus.signedOut;
   }
 
+  /// Re-authenticate with Google (needed before Firebase Auth account deletion).
+  Future<UserCredential> reauthenticateWithGoogle() async {
+    if (!firebaseReady || _auth == null) {
+      throw StateError('Firebase is not ready.');
+    }
+    await _ensureGoogleSignIn();
+    final account = await GoogleSignIn.instance.authenticate();
+    final idToken = account.authentication.idToken;
+    if (idToken == null) {
+      throw StateError('Google Sign-In did not return an ID token.');
+    }
+    final credential = GoogleAuthProvider.credential(idToken: idToken);
+    final current = _auth!.currentUser;
+    if (current == null) {
+      return _auth!.signInWithCredential(credential);
+    }
+    return current.reauthenticateWithCredential(credential);
+  }
+
+  /// Permanently deletes the Firebase Auth user. Call after cloud doc delete.
+  Future<void> deleteFirebaseAuthUser() async {
+    if (!firebaseReady || _auth == null) {
+      throw StateError('Firebase is not ready.');
+    }
+    final current = _auth!.currentUser;
+    if (current == null) {
+      await signOut();
+      return;
+    }
+    try {
+      await current.delete();
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'requires-recent-login') {
+        await reauthenticateWithGoogle();
+        await _auth!.currentUser?.delete();
+      } else {
+        rethrow;
+      }
+    }
+    await _prefs?.setBool(_guestFlagKey, false);
+    await _prefs?.remove(_modeKey);
+    user.value = null;
+    status.value = AuthStatus.signedOut;
+    try {
+      if (_googleSignInReady) {
+        await GoogleSignIn.instance.signOut();
+      }
+    } catch (_) {}
+  }
+
   /// Clears guest session id (explicit reset only).
   Future<void> clearGuestIdentity() async {
     await _prefs?.remove(_guestIdKey);

@@ -153,6 +153,34 @@ class SaveRepository {
     return merged;
   }
 
+  /// Play Store account-deletion: erase cloud save + Firebase Auth user + local.
+  Future<void> deleteAccountAndData() async {
+    if (!auth.isAuthenticated) {
+      throw StateError('No Google account is signed in.');
+    }
+    final uid = auth.uid;
+    if (uid == null) {
+      throw StateError('Missing user id.');
+    }
+    syncState.value = SyncState.syncing;
+    try {
+      try {
+        await _userDoc(uid)!.delete().timeout(const Duration(seconds: 12));
+      } catch (e, st) {
+        // Continue with Auth delete even if doc already missing.
+        debugPrint('Cloud delete (may already be gone): $e\n$st');
+      }
+      await auth.deleteFirebaseAuthUser();
+      await scoreService.clearAllProgress();
+      syncState.value = SyncState.idle;
+    } catch (e, st) {
+      debugPrint('Account deletion failed: $e\n$st');
+      lastError = '$e';
+      syncState.value = SyncState.error;
+      rethrow;
+    }
+  }
+
   void dispose() {
     _debounce?.cancel();
   }

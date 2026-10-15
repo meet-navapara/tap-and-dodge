@@ -5,12 +5,12 @@
 class AdConfig {
   const AdConfig._();
 
-  /// Keep `true` until you paste real AdMob IDs (deferred — do before Play publish).
+  /// Keep `true` until you paste real AdMob IDs.
+  /// Release builds refuse to start ads while this is true (AdMob invalid-traffic risk).
   static const bool useTestAds = true;
 
-  /// When test ads fail to load/show, still grant the reward so QA can verify
-  /// continue / 2x coins / daily double without a working WebView ad engine.
-  /// Set `false` before shipping with real ads.
+  /// Debug/QA only: when test ads fail to load/show, grant the reward so device
+  /// QA can verify continue / 2x / daily double. Never active in release builds.
   static const bool qaSimulateRewardedWhenAdFails = true;
 
   /// AdMob test device IDs (from logcat: "Use RequestConfiguration...").

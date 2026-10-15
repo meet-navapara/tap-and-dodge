@@ -7,6 +7,7 @@ import '../services/admob_service.dart';
 import '../services/audio_service.dart';
 import '../services/auth_service.dart';
 import '../services/connectivity_service.dart';
+import '../services/legal_config.dart';
 import '../services/progress_sync_service.dart';
 import '../services/score_service.dart';
 import '../theme/app_theme.dart';
@@ -110,6 +111,74 @@ class _AccountScreenState extends State<AccountScreen> {
           ? 'Cloud sync complete.'
           : 'Sync failed. Local progress is still safe — try again later.';
     });
+  }
+
+  Future<void> _deleteAccount() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.deepNavy,
+        title: const Text('Delete account?'),
+        content: const Text(
+          'This permanently deletes your Tap & Dodge cloud save and '
+          'signs you out of this app. Your Google account itself is not '
+          'deleted. This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: AppColors.obstacle),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() {
+      _busy = true;
+      _message = null;
+    });
+    try {
+      await _repo.deleteAccountAndData();
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (_) => AuthGateScreen(
+            scoreService: widget.scoreService,
+            audioService: widget.audioService,
+            connectivity: widget.connectivity,
+            adMob: widget.adMob,
+            auth: widget.auth,
+            sync: widget.sync,
+          ),
+        ),
+        (_) => false,
+      );
+    } on GoogleSignInException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _message = e.code == GoogleSignInExceptionCode.canceled
+            ? null
+            : 'Account deletion needs a fresh Google confirmation. Try again.';
+      });
+    } catch (e) {
+      debugPrint('Delete account failed: $e');
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _message =
+            'Could not delete account. Check internet and try again. '
+            'If it keeps failing, email ${LegalConfig.supportEmail.isEmpty ? 'support' : LegalConfig.supportEmail}.';
+      });
+    }
   }
 
   Future<void> _signOut() async {
@@ -362,6 +431,25 @@ class _AccountScreenState extends State<AccountScreen> {
                 OutlinedButton(
                   onPressed: _busy ? null : _signOut,
                   child: const Text('Sign Out'),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton(
+                  onPressed: _busy ? null : _deleteAccount,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.obstacle,
+                    side: const BorderSide(color: AppColors.obstacle),
+                  ),
+                  child: const Text('Delete Account & Cloud Save'),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Required for Google Play when accounts exist. '
+                  'Deletes only Tap & Dodge cloud data, not your Google login.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    height: 1.35,
+                    color: AppColors.softWhite.withValues(alpha: 0.5),
+                  ),
                 ),
               ],
               const SizedBox(height: 12),
