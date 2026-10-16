@@ -1,7 +1,9 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../services/admob_service.dart';
 import '../services/audio_service.dart';
@@ -43,24 +45,30 @@ class _AccountScreenState extends State<AccountScreen> {
 
   SaveRepository get _repo => widget.sync.repository;
 
-  Future<void> _saveGuestProgress() async {
+  bool get _showApple =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+
+  Future<void> _saveGuestProgress(AuthProviderKind provider) async {
     if (_busy) return;
     setState(() {
       _busy = true;
       _message = null;
     });
+    final label = provider == AuthProviderKind.apple ? 'Apple' : 'Google';
     try {
       await widget.audioService.playClick();
       if (!widget.auth.firebaseReady) {
         await widget.auth.initFirebase();
       }
-      final merged = await _repo.migrateGuestToGoogle();
+      final merged = await _repo.migrateGuestToAuthenticated(
+        provider: provider,
+      );
       if (!mounted) return;
       HapticFeedback.mediumImpact();
       setState(() {
         _busy = false;
         _message =
-            'Progress saved to Google. Unlocked level ${merged.unlockedLevel}, '
+            'Progress saved with $label. Unlocked level ${merged.unlockedLevel}, '
             '${merged.totalCoins} coins.';
       });
     } on GoogleSignInException catch (e) {
@@ -73,6 +81,16 @@ class _AccountScreenState extends State<AccountScreen> {
           _message = 'Google Sign-In failed. Guest progress is still safe.';
         }
       });
+    } on SignInWithAppleAuthorizationException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        if (e.code == AuthorizationErrorCode.canceled) {
+          _message = null;
+        } else {
+          _message = 'Apple Sign-In failed. Guest progress is still safe.';
+        }
+      });
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -80,11 +98,11 @@ class _AccountScreenState extends State<AccountScreen> {
         if (e.code == 'credential-already-in-use' ||
             e.code == 'account-exists-with-different-credential') {
           _message =
-              'That Google account is already linked elsewhere. '
-              'Guest progress was not deleted. Sign in from the account screen '
-              'with that Google account, or use another account.';
+              'That $label account is already linked elsewhere. '
+              'Guest progress was not deleted.';
         } else {
-          _message = e.message ?? 'Could not link Google. Guest progress kept.';
+          _message =
+              e.message ?? 'Could not link $label. Guest progress kept.';
         }
       });
     } catch (e) {
@@ -92,7 +110,8 @@ class _AccountScreenState extends State<AccountScreen> {
       if (!mounted) return;
       setState(() {
         _busy = false;
-        _message = 'Could not save to Google. Your guest progress is still on this device.';
+        _message =
+            'Could not save with $label. Your guest progress is still on this device.';
       });
     }
   }
@@ -121,7 +140,7 @@ class _AccountScreenState extends State<AccountScreen> {
         title: const Text('Delete account?'),
         content: const Text(
           'This permanently deletes your Tap & Dodge cloud save and '
-          'signs you out of this app. Your Google account itself is not '
+          'signs you out of this app. Your Apple/Google account itself is not '
           'deleted. This cannot be undone.',
         ),
         actions: [
@@ -287,8 +306,8 @@ class _AccountScreenState extends State<AccountScreen> {
   @override
   Widget build(BuildContext context) {
     final auth = widget.auth;
-    final isGoogle = auth.isAuthenticated;
-    final name = auth.displayName ?? auth.email ?? 'Google player';
+    final isSignedInCloud = auth.isAuthenticated;
+    final name = auth.accountLabel;
 
     return Scaffold(
       body: Container(
@@ -324,13 +343,16 @@ class _AccountScreenState extends State<AccountScreen> {
                       radius: 28,
                       backgroundColor: AppColors.panelBorder,
                       backgroundImage:
-                          isGoogle && (auth.photoUrl?.isNotEmpty ?? false)
+                          isSignedInCloud &&
+                              (auth.photoUrl?.isNotEmpty ?? false)
                           ? NetworkImage(auth.photoUrl!)
                           : null,
-                      child: isGoogle && (auth.photoUrl?.isNotEmpty ?? false)
+                      child:
+                          isSignedInCloud &&
+                              (auth.photoUrl?.isNotEmpty ?? false)
                           ? null
                           : Icon(
-                              isGoogle
+                              isSignedInCloud
                                   ? Icons.person_rounded
                                   : Icons.sports_esports_rounded,
                               color: AppColors.player,
@@ -342,7 +364,7 @@ class _AccountScreenState extends State<AccountScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            isGoogle ? name : 'Guest',
+                            isSignedInCloud ? name : 'Guest',
                             style: const TextStyle(
                               fontWeight: FontWeight.w800,
                               fontSize: 18,
@@ -350,14 +372,16 @@ class _AccountScreenState extends State<AccountScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            isGoogle ? 'Cloud save enabled' : 'Local save only',
+                            isSignedInCloud
+                                ? 'Cloud save enabled'
+                                : 'Local save only',
                             style: TextStyle(
                               color: AppColors.softWhite.withValues(
                                 alpha: 0.65,
                               ),
                             ),
                           ),
-                          if (!isGoogle && auth.guestId != null) ...[
+                          if (!isSignedInCloud && auth.guestId != null) ...[
                             const SizedBox(height: 2),
                             Text(
                               'Guest ID · ${auth.guestId!.substring(0, 8)}…',
@@ -401,15 +425,31 @@ class _AccountScreenState extends State<AccountScreen> {
                 ),
               ],
               const SizedBox(height: 20),
-              if (!isGoogle) ...[
+              if (!isSignedInCloud) ...[
+                if (_showApple) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: SignInWithAppleButton(
+                      onPressed: _busy
+                          ? () {}
+                          : () => _saveGuestProgress(AuthProviderKind.apple),
+                      text: 'Save with Apple',
+                      style: SignInWithAppleButtonStyle.white,
+                      borderRadius: const BorderRadius.all(Radius.circular(16)),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ],
                 GoogleSignInButton(
                   busy: _busy,
-                  label: 'Save My Progress',
-                  onPressed: _saveGuestProgress,
+                  label: 'Save with Google',
+                  onPressed: () =>
+                      _saveGuestProgress(AuthProviderKind.google),
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  'Link Google to keep levels and coins if you change phones. '
+                  'Link Apple or Google to keep levels and coins across devices. '
                   'We merge with any existing cloud save using the safer progress.',
                   style: TextStyle(
                     fontSize: 12,
@@ -443,8 +483,8 @@ class _AccountScreenState extends State<AccountScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Required for Google Play when accounts exist. '
-                  'Deletes only Tap & Dodge cloud data, not your Google login.',
+                  'Required by App Store / Play when accounts exist. '
+                  'Deletes only Tap & Dodge cloud data, not your Apple/Google login.',
                   style: TextStyle(
                     fontSize: 12,
                     height: 1.35,
@@ -456,7 +496,7 @@ class _AccountScreenState extends State<AccountScreen> {
               TextButton(
                 onPressed: _busy ? null : _switchAccount,
                 child: Text(
-                  isGoogle
+                  isSignedInCloud
                       ? 'Use a different account'
                       : 'Back to account picker',
                   style: TextStyle(

@@ -57,11 +57,13 @@ class AdMobService {
       );
     }
     if (kReleaseMode &&
-        (AdConfig.productionAppId.contains('xxxx') ||
-            AdConfig.productionRewardedUnitId.contains('xxxx'))) {
+        (AdConfig.productionAndroidAppId.contains('xxxx') ||
+            AdConfig.productionIosAppId.contains('xxxx') ||
+            AdConfig.productionRewardedUnitId.contains('xxxx') ||
+            AdConfig.productionIosRewardedUnitId.contains('xxxx'))) {
       throw StateError(
         'Production AdMob unit IDs are still placeholders. '
-        'Replace them in ad_config.dart before Play upload.',
+        'Replace them in ad_config.dart before store upload.',
       );
     }
     try {

@@ -90,13 +90,12 @@ class PrivacyPolicyScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 12),
                         const Text(
-                          '2) Google account (optional)\n'
-                          'If you choose Continue with Google / Save My Progress, '
-                          'we use Firebase Authentication with Google Sign-In. '
+                          '2) Google or Apple account (optional)\n'
+                          'If you choose Continue with Google, Sign in with Apple, '
+                          'or Save My Progress, we use Firebase Authentication. '
                           'We receive a Firebase user id and may receive your '
-                          'Google display name, email, and profile photo URL from '
-                          'Google. We use these to identify your account and show '
-                          'your name in Account settings.',
+                          'display name, email, and (for Google) profile photo URL. '
+                          'On iOS, Sign in with Apple is offered alongside Google.',
                         ),
                         const SizedBox(height: 12),
                         const Text(

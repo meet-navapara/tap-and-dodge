@@ -1,12 +1,14 @@
-# Firebase + Google Sign-In + Cloud Save
+# Firebase + Google / Apple Sign-In + Cloud Save
 
 ## What the app uses
 
 | Service | Purpose |
 |---------|---------|
-| Firebase Auth (Google) | Identity (`uid`) |
+| Firebase Auth (Google + Apple) | Identity (`uid`) — Apple required for App Store when Google SSO is offered |
 | Cloud Firestore | `users/{uid}` campaign save |
 | SharedPreferences | Local cache + Guest progress |
+
+iOS App Store steps: see [`APP_STORE.md`](APP_STORE.md).
 
 Guest progress is **never** written to a shared public Firestore document.
 

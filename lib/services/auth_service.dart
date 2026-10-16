@@ -1,18 +1,23 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 
+import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../firebase_options.dart';
 
 /// Authentication lifecycle for Tap & Dodge.
 enum AuthStatus { initializing, signedOut, guest, authenticated }
 
-/// Google Sign-In + local Guest sessions (separate from Flame).
+enum AuthProviderKind { google, apple }
+
+/// Google / Apple SSO + local Guest sessions (separate from Flame).
 class AuthService {
   AuthService({this._auth});
 
@@ -32,7 +37,9 @@ class AuthService {
 
   bool get isGuest => status.value == AuthStatus.guest;
   bool get isAuthenticated => status.value == AuthStatus.authenticated;
-  bool get isGoogle => isAuthenticated;
+  bool get isGoogle =>
+      isAuthenticated && providerKind == AuthProviderKind.google;
+  bool get isApple => isAuthenticated && providerKind == AuthProviderKind.apple;
   bool get isSignedIn =>
       status.value == AuthStatus.guest ||
       status.value == AuthStatus.authenticated;
@@ -43,6 +50,30 @@ class AuthService {
   String? get uid => user.value?.uid;
   String? get guestId => _prefs?.getString(_guestIdKey);
 
+  AuthProviderKind? get providerKind {
+    final u = user.value;
+    if (u == null) return null;
+    for (final info in u.providerData) {
+      if (info.providerId == 'google.com') return AuthProviderKind.google;
+      if (info.providerId == 'apple.com') return AuthProviderKind.apple;
+    }
+    final mode = _prefs?.getString(_modeKey);
+    if (mode == 'apple') return AuthProviderKind.apple;
+    if (mode == 'google' || mode == 'authenticated') {
+      return AuthProviderKind.google;
+    }
+    return null;
+  }
+
+  String get accountLabel {
+    if (isGuest) return 'Guest';
+    if (isApple) return displayName?.isNotEmpty == true ? displayName! : 'Apple';
+    if (isGoogle) {
+      return displayName?.isNotEmpty == true ? displayName! : 'Google';
+    }
+    return 'Account';
+  }
+
   /// Fast local session restore (SharedPreferences). Call before [runApp].
   Future<void> initLocalSession() async {
     _prefs ??= await SharedPreferences.getInstance();
@@ -52,8 +83,9 @@ class AuthService {
       user.value = null;
       return;
     }
-    if (saved == 'google') {
-      // Tentative — confirmed after Firebase init.
+    if (saved == 'google' ||
+        saved == 'apple' ||
+        saved == 'authenticated') {
       status.value = AuthStatus.authenticated;
       return;
     }
@@ -84,7 +116,7 @@ class AuthService {
       if (current != null && !current.isAnonymous) {
         user.value = current;
         status.value = AuthStatus.authenticated;
-        await _prefs!.setString(_modeKey, 'google');
+        await _persistAuthenticatedMode();
         await _prefs!.setBool(_guestFlagKey, false);
       } else if (status.value == AuthStatus.authenticated) {
         status.value = AuthStatus.signedOut;
@@ -93,6 +125,15 @@ class AuthService {
     }
 
     unawaited(warmGoogleSignIn());
+  }
+
+  Future<void> _persistAuthenticatedMode() async {
+    final kind = providerKind;
+    if (kind == AuthProviderKind.apple) {
+      await _prefs?.setString(_modeKey, 'apple');
+    } else {
+      await _prefs?.setString(_modeKey, 'google');
+    }
   }
 
   /// Combined init used by tests / simple call sites.
@@ -171,7 +212,70 @@ class AuthService {
     return result;
   }
 
-  /// Sign out of Google. Does **not** delete Firestore cloud save.
+  /// Sign in with Apple — required on iOS App Store when offering Google SSO.
+  Future<UserCredential> signInWithApple() async {
+    if (!firebaseReady || _auth == null) {
+      throw StateError(
+        'Firebase is not ready yet. Check your connection and try again.',
+      );
+    }
+
+    final rawNonce = _generateNonce();
+    final nonce = sha256.convert(utf8.encode(rawNonce)).toString();
+
+    final appleCredential = await SignInWithApple.getAppleIDCredential(
+      scopes: [
+        AppleIDAuthorizationScopes.email,
+        AppleIDAuthorizationScopes.fullName,
+      ],
+      nonce: nonce,
+    );
+
+    final idToken = appleCredential.identityToken;
+    if (idToken == null) {
+      throw StateError('Apple Sign-In did not return an identity token.');
+    }
+
+    final oauthCredential = OAuthProvider('apple.com').credential(
+      idToken: idToken,
+      rawNonce: rawNonce,
+      accessToken: appleCredential.authorizationCode,
+    );
+
+    final result = await _auth!.signInWithCredential(oauthCredential);
+
+    // Apple only sends the full name on the first authorization.
+    final given = appleCredential.givenName;
+    final family = appleCredential.familyName;
+    if ((given != null || family != null) && result.user != null) {
+      final fullName = [given, family].whereType<String>().join(' ').trim();
+      if (fullName.isNotEmpty &&
+          (result.user!.displayName == null ||
+              result.user!.displayName!.isEmpty)) {
+        await result.user!.updateDisplayName(fullName);
+        await result.user!.reload();
+        user.value = _auth!.currentUser;
+      }
+    }
+
+    await _prefs?.setBool(_guestFlagKey, false);
+    await _prefs?.setString(_modeKey, 'apple');
+    user.value = _auth!.currentUser ?? result.user;
+    status.value = AuthStatus.authenticated;
+    return result;
+  }
+
+  String _generateNonce([int length = 32]) {
+    const charset =
+        '0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._';
+    final random = Random.secure();
+    return List.generate(
+      length,
+      (_) => charset[random.nextInt(charset.length)],
+    ).join();
+  }
+
+  /// Sign out. Does **not** delete Firestore cloud save.
   Future<void> signOut() async {
     if (firebaseReady) {
       try {
@@ -189,7 +293,6 @@ class AuthService {
     status.value = AuthStatus.signedOut;
   }
 
-  /// Re-authenticate with Google (needed before Firebase Auth account deletion).
   Future<UserCredential> reauthenticateWithGoogle() async {
     if (!firebaseReady || _auth == null) {
       throw StateError('Firebase is not ready.');
@@ -208,6 +311,35 @@ class AuthService {
     return current.reauthenticateWithCredential(credential);
   }
 
+  Future<UserCredential> reauthenticateWithApple() async {
+    if (!firebaseReady || _auth == null) {
+      throw StateError('Firebase is not ready.');
+    }
+    final rawNonce = _generateNonce();
+    final nonce = sha256.convert(utf8.encode(rawNonce)).toString();
+    final appleCredential = await SignInWithApple.getAppleIDCredential(
+      scopes: [
+        AppleIDAuthorizationScopes.email,
+        AppleIDAuthorizationScopes.fullName,
+      ],
+      nonce: nonce,
+    );
+    final idToken = appleCredential.identityToken;
+    if (idToken == null) {
+      throw StateError('Apple Sign-In did not return an identity token.');
+    }
+    final oauthCredential = OAuthProvider('apple.com').credential(
+      idToken: idToken,
+      rawNonce: rawNonce,
+      accessToken: appleCredential.authorizationCode,
+    );
+    final current = _auth!.currentUser;
+    if (current == null) {
+      return _auth!.signInWithCredential(oauthCredential);
+    }
+    return current.reauthenticateWithCredential(oauthCredential);
+  }
+
   /// Permanently deletes the Firebase Auth user. Call after cloud doc delete.
   Future<void> deleteFirebaseAuthUser() async {
     if (!firebaseReady || _auth == null) {
@@ -222,7 +354,11 @@ class AuthService {
       await current.delete();
     } on FirebaseAuthException catch (e) {
       if (e.code == 'requires-recent-login') {
-        await reauthenticateWithGoogle();
+        if (providerKind == AuthProviderKind.apple) {
+          await reauthenticateWithApple();
+        } else {
+          await reauthenticateWithGoogle();
+        }
         await _auth!.currentUser?.delete();
       } else {
         rethrow;

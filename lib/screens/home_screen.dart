@@ -354,8 +354,8 @@ class _HomeScreenState extends State<HomeScreen>
                             TextButton(
                               onPressed: _openAccount,
                               child: Text(
-                                widget.auth!.isGoogle
-                                    ? (widget.auth!.displayName ?? 'Account')
+                                widget.auth!.isAuthenticated
+                                    ? '${widget.auth!.accountLabel} · Account'
                                     : 'Guest · Account',
                                 style: TextStyle(
                                   color: AppColors.accent.withValues(

@@ -1,5 +1,8 @@
-// Generated from Firebase project tapdodge-294f4 / google-services.json.
-// Re-run `flutterfire configure` if you add platforms later.
+// Firebase options for Android + iOS (project tapdodge-294f4).
+// After adding the iOS app in Firebase Console, run:
+//   dart pub global activate flutterfire_cli
+//   flutterfire configure --project=tapdodge-294f4 --platforms=android,ios
+// Or paste values from GoogleService-Info.plist into [ios] below.
 
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'
@@ -14,7 +17,7 @@ class DefaultFirebaseOptions {
       case TargetPlatform.android:
         return android;
       case TargetPlatform.iOS:
-        throw UnsupportedError('iOS Firebase options not configured.');
+        return ios;
       default:
         throw UnsupportedError(
           'DefaultFirebaseOptions are not supported for this platform.',
@@ -30,7 +33,18 @@ class DefaultFirebaseOptions {
     storageBucket: 'tapdodge-294f4.firebasestorage.app',
   );
 
-  /// OAuth Web client ID (client_type 3) — required for Google → Firebase idToken.
+  /// From GoogleService-Info.plist (iOS app com.ujjwal.tapandodge).
+  static const FirebaseOptions ios = FirebaseOptions(
+    apiKey: 'AIzaSyCF_x64_D2_6A2gKbDe0-hxTuaF2Hwwj7s',
+    appId: '1:474158228172:ios:fd157448b34a6e0f48d869',
+    messagingSenderId: '474158228172',
+    projectId: 'tapdodge-294f4',
+    storageBucket: 'tapdodge-294f4.firebasestorage.app',
+    iosBundleId: 'com.ujjwal.tapandodge',
+  );
+
+  /// OAuth **Web** client ID — used as Google Sign-In serverClientId on
+  /// Android and iOS so Firebase Auth receives an idToken.
   static const String googleServerClientId =
       '474158228172-thgdtuq6drhfun78s7ua29f1rb61qbi3.apps.googleusercontent.com';
 }

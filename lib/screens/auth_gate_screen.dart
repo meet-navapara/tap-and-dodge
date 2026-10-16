@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/admob_service.dart';
@@ -42,9 +44,13 @@ class AuthGateScreen extends StatefulWidget {
 
 class _AuthGateScreenState extends State<AuthGateScreen> {
   bool _busyGoogle = false;
+  bool _busyApple = false;
   bool _busyGuest = false;
   String? _error;
   bool _offline = false;
+
+  bool get _showApple =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
 
   @override
   void initState() {
@@ -64,7 +70,7 @@ class _AuthGateScreenState extends State<AuthGateScreen> {
     setState(() => _offline = !widget.connectivity.hasInternet.value);
   }
 
-  bool get _busy => _busyGoogle || _busyGuest;
+  bool get _busy => _busyGoogle || _busyApple || _busyGuest;
 
   Future<void> _goHome() async {
     if (!mounted) return;
@@ -107,11 +113,32 @@ class _AuthGateScreenState extends State<AuthGateScreen> {
     }
   }
 
+  Future<void> _afterCloudAuth() async {
+    final restored = await widget.sync.restoreIfGoogle();
+    if (!restored &&
+        widget.sync.repository.syncState.value != SyncState.error) {
+      await widget.sync.pushIfGoogle();
+    }
+    HapticFeedback.mediumImpact();
+    await _goHome();
+  }
+
+  Future<void> _ensureFirebase() async {
+    if (!widget.auth.firebaseReady) {
+      await widget.auth.initFirebase().timeout(const Duration(seconds: 8));
+    }
+    if (!widget.auth.firebaseReady) {
+      throw StateError(
+        'Firebase is still starting. Please retry in a moment.',
+      );
+    }
+  }
+
   Future<void> _signInGoogle() async {
     if (_busy) return;
     if (_offline) {
       setState(() {
-        _error = 'Internet required for Google Sign-In. Play as Guest offline.';
+        _error = 'Internet required for sign-in. Play as Guest offline.';
       });
       return;
     }
@@ -121,22 +148,9 @@ class _AuthGateScreenState extends State<AuthGateScreen> {
     });
     try {
       await widget.audioService.playClick();
-      if (!widget.auth.firebaseReady) {
-        await widget.auth.initFirebase().timeout(const Duration(seconds: 8));
-      }
-      if (!widget.auth.firebaseReady) {
-        throw StateError(
-          'Firebase is still starting. Please retry in a moment.',
-        );
-      }
+      await _ensureFirebase();
       await widget.auth.signInWithGoogle();
-      final restored = await widget.sync.restoreIfGoogle();
-      if (!restored &&
-          widget.sync.repository.syncState.value != SyncState.error) {
-        await widget.sync.pushIfGoogle();
-      }
-      HapticFeedback.mediumImpact();
-      await _goHome();
+      await _afterCloudAuth();
     } on GoogleSignInException catch (e) {
       debugPrint('Google sign-in cancelled/failed: $e');
       if (!mounted) return;
@@ -144,7 +158,7 @@ class _AuthGateScreenState extends State<AuthGateScreen> {
         _busyGoogle = false;
         if (e.code == GoogleSignInExceptionCode.canceled ||
             e.code == GoogleSignInExceptionCode.interrupted) {
-          _error = null; // Quiet return — not an app error.
+          _error = null;
         } else {
           _error = 'Google Sign-In failed. Tap to retry.';
         }
@@ -157,6 +171,46 @@ class _AuthGateScreenState extends State<AuthGateScreen> {
         _error = e is StateError
             ? e.message
             : 'Google Sign-In failed. Check internet and retry.';
+      });
+    }
+  }
+
+  Future<void> _signInApple() async {
+    if (_busy) return;
+    if (_offline) {
+      setState(() {
+        _error = 'Internet required for sign-in. Play as Guest offline.';
+      });
+      return;
+    }
+    setState(() {
+      _busyApple = true;
+      _error = null;
+    });
+    try {
+      await widget.audioService.playClick();
+      await _ensureFirebase();
+      await widget.auth.signInWithApple();
+      await _afterCloudAuth();
+    } on SignInWithAppleAuthorizationException catch (e) {
+      debugPrint('Apple sign-in cancelled/failed: $e');
+      if (!mounted) return;
+      setState(() {
+        _busyApple = false;
+        if (e.code == AuthorizationErrorCode.canceled) {
+          _error = null;
+        } else {
+          _error = 'Apple Sign-In failed. Tap to retry.';
+        }
+      });
+    } catch (e) {
+      debugPrint('Apple sign-in failed: $e');
+      if (!mounted) return;
+      setState(() {
+        _busyApple = false;
+        _error = e is StateError
+            ? e.message
+            : 'Apple Sign-In failed. Check internet and retry.';
       });
     }
   }
@@ -269,9 +323,31 @@ class _AuthGateScreenState extends State<AuthGateScreen> {
                   ),
                 ],
                 const Spacer(flex: 3),
+                if (_showApple) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    height: 54,
+                    child: _busyApple
+                        ? const Center(
+                            child: SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(strokeWidth: 2.4),
+                            ),
+                          )
+                        : SignInWithAppleButton(
+                            onPressed: (_busy || _offline) ? null : _signInApple,
+                            style: SignInWithAppleButtonStyle.white,
+                            borderRadius: const BorderRadius.all(
+                              Radius.circular(16),
+                            ),
+                          ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 GoogleSignInButton(
                   busy: _busyGoogle,
-                  enabled: !_busyGuest && !_offline,
+                  enabled: !_busyGuest && !_busyApple && !_offline,
                   onPressed: _signInGoogle,
                 ),
                 const SizedBox(height: 12),
@@ -308,8 +384,8 @@ class _AuthGateScreenState extends State<AuthGateScreen> {
                 const SizedBox(height: 14),
                 Text(
                   'Guest progress stays on this device and can be lost if you '
-                  'uninstall or clear app data. Connect Google anytime from Account '
-                  'to save permanently.',
+                  'uninstall or clear app data. Connect Apple or Google anytime '
+                  'from Account to save permanently.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: AppColors.softWhite.withValues(alpha: 0.45),

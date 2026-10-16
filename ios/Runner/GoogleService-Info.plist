@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CLIENT_ID</key>
+	<string>474158228172-rpe7mpfkfldm3cv5dnbph17j1f1hafdb.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.474158228172-rpe7mpfkfldm3cv5dnbph17j1f1hafdb</string>
+	<key>ANDROID_CLIENT_ID</key>
+	<string>474158228172-cp470jq9ks5lbar2p6b42ajsgmrrjjtt.apps.googleusercontent.com</string>
+	<key>API_KEY</key>
+	<string>AIzaSyCF_x64_D2_6A2gKbDe0-hxTuaF2Hwwj7s</string>
+	<key>GCM_SENDER_ID</key>
+	<string>474158228172</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.ujjwal.tapanddodge</string>
+	<key>PROJECT_ID</key>
+	<string>tapdodge-294f4</string>
+	<key>STORAGE_BUCKET</key>
+	<string>tapdodge-294f4.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:474158228172:ios:fd157448b34a6e0f48d869</string>
+</dict>
+</plist>

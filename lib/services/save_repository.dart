@@ -142,16 +142,26 @@ class SaveRepository {
     return false;
   }
 
-  /// Guest → Google: preserve guest progress, merge with cloud, write both.
-  Future<PlayerProgress> migrateGuestToGoogle() async {
+  /// Guest → Google/Apple: preserve guest progress, merge with cloud, write both.
+  Future<PlayerProgress> migrateGuestToAuthenticated({
+    AuthProviderKind provider = AuthProviderKind.google,
+  }) async {
     final local = exportLocal();
-    await auth.signInWithGoogle();
+    if (provider == AuthProviderKind.apple) {
+      await auth.signInWithApple();
+    } else {
+      await auth.signInWithGoogle();
+    }
     final cloud = await fetchCloud();
     final merged = ProgressMerge.merge(local, cloud);
     await importLocal(merged);
     await pushCloud(progress: merged);
     return merged;
   }
+
+  /// Backward-compatible alias.
+  Future<PlayerProgress> migrateGuestToGoogle() =>
+      migrateGuestToAuthenticated(provider: AuthProviderKind.google);
 
   /// Play Store account-deletion: erase cloud save + Firebase Auth user + local.
   Future<void> deleteAccountAndData() async {
