@@ -14,11 +14,11 @@
       },
       "oauth_client": [
         {
-          "client_id": "474158228172-cp470jq9ks5lbar2p6b42ajsgmrrjjtt.apps.googleusercontent.com",
+          "client_id": "474158228172-jm4hv1dgdcnso3hhf2k0i900lccu4ims.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.ujjwal.tapandodge",
-            "certificate_hash": "95c987afdfa7e85b179f93b9016a6d862580763c"
+            "certificate_hash": "270dd6197d729efc4dc2d2ecb1794e7cce167018"
           }
         },
         {
@@ -37,6 +37,13 @@
             {
               "client_id": "474158228172-thgdtuq6drhfun78s7ua29f1rb61qbi3.apps.googleusercontent.com",
               "client_type": 3
+            },
+            {
+              "client_id": "474158228172-rpe7mpfkfldm3cv5dnbph17j1f1hafdb.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.ujjwal.tapanddodge"
+              }
             }
           ]
         }

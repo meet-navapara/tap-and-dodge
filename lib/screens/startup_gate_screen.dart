@@ -65,6 +65,10 @@ class _StartupGateScreenState extends State<StartupGateScreen> {
 
     if (!mounted) return;
 
+    // Always start AdMob (show paths still require connectivity).
+    debugPrint('Startup: warming AdMob (online=$online)…');
+    unawaited(_warmAdsInBackground());
+
     if (!online) {
       // Auth itself can continue for Guest; gameplay still needs internet later.
       if (widget.auth.isSignedIn) {
@@ -81,8 +85,6 @@ class _StartupGateScreenState extends State<StartupGateScreen> {
       });
       return;
     }
-
-    unawaited(_warmAdsInBackground());
 
     // Cloud restore after UI decision — only for returning Google users,
     // with a short timeout so splash stays snappy.
@@ -108,12 +110,18 @@ class _StartupGateScreenState extends State<StartupGateScreen> {
         await widget.adMob.initialize();
         return;
       }
+      // Give Mobile Ads + UMP enough time; show/load paths also call
+      // ensureInitialized() so a timeout here is not fatal.
       await widget.adMob.initialize().timeout(
-        const Duration(seconds: 12),
-        onTimeout: () {},
+        const Duration(seconds: 20),
+        onTimeout: () {
+          debugPrint('AdMob init still running in background…');
+        },
       );
+      // Let rewarded preload claim WebView first; app-open can wait.
+      await Future<void>.delayed(const Duration(seconds: 5));
       await widget.adMob.showStartupAppOpenIfEligible().timeout(
-        const Duration(seconds: 8),
+        const Duration(seconds: 12),
         onTimeout: () => false,
       );
     } catch (e, st) {

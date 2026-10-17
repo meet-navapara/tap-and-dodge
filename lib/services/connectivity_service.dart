@@ -65,11 +65,20 @@ class ConnectivityService {
   Future<bool> _performRefresh({required bool forceProbe}) async {
     try {
       final results = await _connectivity.checkConnectivity();
-      final hasLink = results.isEmpty
-          ? true // unknown → don't hard-block
-          : results.any((r) => r != ConnectivityResult.none);
+      // Treat "unknown/empty" and any non-none transport as a link.
+      // Some Android builds briefly report [none] during USB debugging;
+      // don't hard-fail ads/gameplay on that flicker.
+      final hasLink = results.isEmpty ||
+          results.any((r) => r != ConnectivityResult.none);
 
       if (!hasLink) {
+        // Soft-allow once more: if we recently had internet, keep last value.
+        if (_lastProbeAt != null &&
+            DateTime.now().difference(_lastProbeAt!) <
+                const Duration(seconds: 30) &&
+            hasInternet.value) {
+          return true;
+        }
         hasInternet.value = false;
         return false;
       }

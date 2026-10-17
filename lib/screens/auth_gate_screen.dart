@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -55,6 +57,8 @@ class _AuthGateScreenState extends State<AuthGateScreen> {
   @override
   void initState() {
     super.initState();
+    // Guest / Google picker can appear before startup ad warm finishes.
+    unawaited(widget.adMob.ensureInitialized());
     _offline = widget.offline || !widget.connectivity.hasInternet.value;
     widget.connectivity.hasInternet.addListener(_onConnectivity);
   }

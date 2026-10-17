@@ -12,11 +12,14 @@ class AdConfig {
   static const bool useTestAds = true;
 
   /// Debug/QA only: when test ads fail to load/show, grant the reward so device
-  /// QA can verify continue / 2x / daily double. Never active in release builds.
-  static const bool qaSimulateRewardedWhenAdFails = true;
+  /// QA can verify continue / 2x / daily double. Keep **false** while verifying
+  /// that real AdMob creatives appear on device.
+  static const bool qaSimulateRewardedWhenAdFails = false;
 
-  /// AdMob test device IDs (from logcat / Xcode console).
+  /// AdMob / UMP test device hashed IDs (from logcat).
+  /// Pixel 8a example: UserMessagingPlatform / Ads log lines.
   static const List<String> testDeviceIds = [
+    '876F1F64D4A835BDCF0CBEA8FDC6C8F8',
     'D9A77BFA8C8A339A99ACA839A33FC145',
     'CFCCAF98C06E73CF5908B36059D33E73',
   ];

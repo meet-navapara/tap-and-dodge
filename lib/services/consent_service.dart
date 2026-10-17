@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
+import 'ad_config.dart';
+
 /// Google UMP consent before ads (required for EEA/UK when using AdMob).
 class ConsentService {
   bool _requested = false;
@@ -19,7 +21,11 @@ class ConsentService {
     _requested = true;
 
     final completer = Completer<void>();
-    final params = ConsentRequestParameters();
+    final params = ConsentRequestParameters(
+      consentDebugSettings: kDebugMode && AdConfig.testDeviceIds.isNotEmpty
+          ? ConsentDebugSettings(testIdentifiers: AdConfig.testDeviceIds)
+          : null,
+    );
 
     ConsentInformation.instance.requestConsentInfoUpdate(
       params,
@@ -42,8 +48,10 @@ class ConsentService {
     );
 
     await completer.future.timeout(
-      const Duration(seconds: 12),
-      onTimeout: () {},
+      const Duration(seconds: 8),
+      onTimeout: () {
+        debugPrint('UMP consent timed out — continuing with ads init');
+      },
     );
   }
 
@@ -52,6 +60,7 @@ class ConsentService {
     try {
       return await ConsentInformation.instance.canRequestAds();
     } catch (_) {
+      // Fail open outside UMP errors so test ads still load in debug.
       return true;
     }
   }
