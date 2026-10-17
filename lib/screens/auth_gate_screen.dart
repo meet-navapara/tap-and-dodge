@@ -118,10 +118,16 @@ class _AuthGateScreenState extends State<AuthGateScreen> {
   }
 
   Future<void> _afterCloudAuth() async {
-    final restored = await widget.sync.restoreIfGoogle();
-    if (!restored &&
-        widget.sync.repository.syncState.value != SyncState.error) {
-      await widget.sync.pushIfGoogle();
+    final repo = widget.sync.repository;
+    final local = repo.exportLocal();
+    // Always merge when local guest progress exists — never blind-restore.
+    if (SaveRepository.hasMeaningfulProgress(local)) {
+      await repo.mergeLocalWithCloudAfterSignIn();
+    } else {
+      final restored = await widget.sync.restoreIfGoogle();
+      if (!restored && repo.syncState.value != SyncState.error) {
+        await widget.sync.pushIfGoogle();
+      }
     }
     HapticFeedback.mediumImpact();
     await _goHome();

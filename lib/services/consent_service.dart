@@ -7,19 +7,28 @@ import 'ad_config.dart';
 
 /// Google UMP consent before ads (required for EEA/UK when using AdMob).
 class ConsentService {
-  bool _requested = false;
+  bool _completed = false;
+  Future<void>? _inFlight;
 
   /// Requests consent info and shows the form when required.
   /// Safe to call with test AdMob IDs; no-ops on failure.
-  Future<void> gatherConsent() async {
-    if (_requested) return;
-    // UMP / Mobile Ads are not supported on Flutter web.
+  Future<void> gatherConsent({bool force = false}) async {
     if (kIsWeb) {
-      _requested = true;
+      _completed = true;
       return;
     }
-    _requested = true;
+    if (_completed && !force) return;
+    if (_inFlight != null) return _inFlight!;
 
+    _inFlight = _doGather();
+    try {
+      await _inFlight;
+    } finally {
+      _inFlight = null;
+    }
+  }
+
+  Future<void> _doGather() async {
     final completer = Completer<void>();
     final params = ConsentRequestParameters(
       consentDebugSettings: kDebugMode && AdConfig.testDeviceIds.isNotEmpty
@@ -47,12 +56,18 @@ class ConsentService {
       },
     );
 
+    var timedOut = false;
     await completer.future.timeout(
-      const Duration(seconds: 8),
+      const Duration(seconds: 10),
       onTimeout: () {
-        debugPrint('UMP consent timed out — continuing with ads init');
+        timedOut = true;
+        debugPrint('UMP consent timed out — will allow retry');
       },
     );
+    // Only mark complete when the SDK finished; timeouts can retry.
+    if (!timedOut) {
+      _completed = true;
+    }
   }
 
   Future<bool> get canRequestAds async {
@@ -60,7 +75,6 @@ class ConsentService {
     try {
       return await ConsentInformation.instance.canRequestAds();
     } catch (_) {
-      // Fail open outside UMP errors so test ads still load in debug.
       return true;
     }
   }

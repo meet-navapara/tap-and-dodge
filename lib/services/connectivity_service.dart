@@ -24,7 +24,12 @@ class ConnectivityService {
     'https://clients3.google.com/generate_204',
   ];
 
+  /// Transport available (Wi‑Fi / cellular), even if probes fail.
+  final ValueNotifier<bool> hasLink = ValueNotifier(true);
+
+  /// Last successful HTTP reachability probe.
   final ValueNotifier<bool> hasInternet = ValueNotifier(true);
+
   StreamSubscription<List<ConnectivityResult>>? _sub;
   Future<bool>? _ongoing;
   DateTime? _lastProbeAt;
@@ -43,8 +48,8 @@ class ConnectivityService {
 
   /// Lightweight check: interface + occasional HTTP probe.
   ///
-  /// Concurrent callers await the in-flight refresh. A [forceProbe] that
-  /// arrives during an in-flight check waits, then runs a fresh probe.
+  /// Returns [hasInternet] (probe success). Use [hasLink] when you only need
+  /// "is a network interface up?" (e.g. soft offline UX).
   Future<bool> refresh({bool forceProbe = false}) async {
     if (_ongoing != null) {
       await _ongoing;
@@ -65,26 +70,16 @@ class ConnectivityService {
   Future<bool> _performRefresh({required bool forceProbe}) async {
     try {
       final results = await _connectivity.checkConnectivity();
-      // Treat "unknown/empty" and any non-none transport as a link.
-      // Some Android builds briefly report [none] during USB debugging;
-      // don't hard-fail ads/gameplay on that flicker.
-      final hasLink = results.isEmpty ||
+      final linkUp = results.isEmpty ||
           results.any((r) => r != ConnectivityResult.none);
+      hasLink.value = linkUp;
 
-      if (!hasLink) {
-        // Soft-allow once more: if we recently had internet, keep last value.
-        if (_lastProbeAt != null &&
-            DateTime.now().difference(_lastProbeAt!) <
-                const Duration(seconds: 30) &&
-            hasInternet.value) {
-          return true;
-        }
+      if (!linkUp) {
         hasInternet.value = false;
         return false;
       }
 
-      // Web browsers block cross-origin XHR to generate_204 (CORS), so an HTTP
-      // probe always fails in Chrome/Edge even when Wi‑Fi works. Trust the link.
+      // Web browsers block cross-origin XHR to generate_204 (CORS).
       if (kIsWeb) {
         hasInternet.value = true;
         _lastProbeAt = DateTime.now();
@@ -102,15 +97,17 @@ class ConnectivityService {
 
       final ok = await _probeInternet();
       _lastProbeAt = now;
-      // Soft-allow: if Wi‑Fi/cellular is up but probes fail (firewall/DNS),
-      // still open the game — ads will no-op if truly offline.
-      hasInternet.value = ok || hasLink;
-      return hasInternet.value;
+      // Probe result only — do not soft-lie as "online" when DNS/firewall blocks.
+      hasInternet.value = ok;
+      return ok;
     } catch (e, st) {
       debugPrint('Connectivity refresh failed: $e\n$st');
-      // Don't trap the player behind a false offline gate on unexpected errors.
-      hasInternet.value = true;
-      return true;
+      // Unknown error: trust link if we have one.
+      if (hasLink.value) {
+        return hasInternet.value;
+      }
+      hasInternet.value = false;
+      return false;
     }
   }
 
@@ -134,5 +131,6 @@ class ConnectivityService {
     unawaited(stop());
     _http.close();
     hasInternet.dispose();
+    hasLink.dispose();
   }
 }

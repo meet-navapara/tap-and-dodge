@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../services/admob_service.dart';
@@ -11,7 +10,6 @@ import '../services/progress_sync_service.dart';
 import '../services/score_service.dart';
 import '../theme/app_theme.dart';
 import 'auth_gate_screen.dart';
-import 'connection_required_screen.dart';
 import 'home_screen.dart';
 
 /// Fast splash → auth/home. Ads & Firebase warm in parallel.
@@ -39,7 +37,6 @@ class StartupGateScreen extends StatefulWidget {
 
 class _StartupGateScreenState extends State<StartupGateScreen> {
   bool _ready = false;
-  bool _needsInternet = false;
   bool _offlineAuth = false;
   String _status = 'Starting Tap & Dodge…';
 
@@ -52,12 +49,15 @@ class _StartupGateScreenState extends State<StartupGateScreen> {
   Future<void> _bootstrap() async {
     setState(() => _status = 'Checking connection…');
     await widget.connectivity.start();
+    // Don't fake "online" on probe timeout — Guest still works offline.
     final online = await widget.connectivity
         .refresh(forceProbe: true)
-        .timeout(const Duration(seconds: 3), onTimeout: () => true);
+        .timeout(
+          const Duration(seconds: 3),
+          onTimeout: () => widget.connectivity.hasInternet.value,
+        );
 
     setState(() => _status = 'Preparing…');
-    // Firebase + Google warm-up — do not block auth UI for long.
     await widget.auth.initFirebase().timeout(
       const Duration(seconds: 6),
       onTimeout: () {},
@@ -65,85 +65,57 @@ class _StartupGateScreenState extends State<StartupGateScreen> {
 
     if (!mounted) return;
 
-    // Always start AdMob (show paths still require connectivity).
     debugPrint('Startup: warming AdMob (online=$online)…');
-    unawaited(_warmAdsInBackground());
+    final adsInit = _initAdsOnly();
 
-    if (!online) {
-      // Auth itself can continue for Guest; gameplay still needs internet later.
-      if (widget.auth.isSignedIn) {
-        setState(() {
-          _needsInternet = true;
-          _ready = false;
-        });
-        return;
-      }
-      setState(() {
-        _offlineAuth = true;
-        _needsInternet = false;
-        _ready = true;
-      });
-      return;
-    }
-
-    // Cloud restore after UI decision — only for returning Google users,
-    // with a short timeout so splash stays snappy.
-    if (widget.auth.isAuthenticated) {
+    // Cloud restore before Home so pushes don't overwrite better cloud data.
+    if (online && widget.auth.isAuthenticated) {
       setState(() => _status = 'Restoring cloud save…');
       await widget.sync.restoreIfGoogle().timeout(
-        const Duration(seconds: 4),
+        const Duration(seconds: 10),
+        onTimeout: () {
+          debugPrint('Cloud restore timed out — pushes stay blocked');
+          return false;
+        },
+      );
+    }
+
+    // Finish ads init, then show app-open ONLY while splash is still up.
+    setState(() => _status = 'Almost ready…');
+    await adsInit.timeout(
+      const Duration(seconds: 20),
+      onTimeout: () {
+        debugPrint('AdMob init still running in background…');
+      },
+    );
+
+    if (mounted && !_ready) {
+      await widget.adMob.showStartupAppOpenIfEligible().timeout(
+        const Duration(seconds: 8),
         onTimeout: () => false,
       );
     }
 
     if (!mounted) return;
     setState(() {
-      _needsInternet = false;
-      _offlineAuth = false;
+      _offlineAuth = !online;
       _ready = true;
     });
   }
 
-  Future<void> _warmAdsInBackground() async {
+  Future<void> _initAdsOnly() async {
     try {
-      if (kIsWeb) {
-        await widget.adMob.initialize();
-        return;
-      }
-      // Give Mobile Ads + UMP enough time; show/load paths also call
-      // ensureInitialized() so a timeout here is not fatal.
-      await widget.adMob.initialize().timeout(
-        const Duration(seconds: 20),
-        onTimeout: () {
-          debugPrint('AdMob init still running in background…');
-        },
-      );
-      // Let rewarded preload claim WebView first; app-open can wait.
-      await Future<void>.delayed(const Duration(seconds: 5));
-      await widget.adMob.showStartupAppOpenIfEligible().timeout(
-        const Duration(seconds: 12),
-        onTimeout: () => false,
-      );
+      await widget.adMob.initialize();
     } catch (e, st) {
-      debugPrint('Background ad warm-up failed: $e\n$st');
+      debugPrint('AdMob init failed: $e\n$st');
     }
-  }
-
-  Future<void> _retry() async {
-    setState(() {
-      _needsInternet = false;
-      _status = 'Retrying…';
-    });
-    await _bootstrap();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_needsInternet) {
-      return ConnectionRequiredScreen(onRetry: _retry);
-    }
     if (_ready) {
       if (widget.auth.isSignedIn) {
+        // Signed-in users can open Home offline; ads/campaign still gate online.
         return HomeScreen(
           scoreService: widget.scoreService,
           audioService: widget.audioService,

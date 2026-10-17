@@ -234,13 +234,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _signOut() async {
+    final providerLabel = widget.auth.isApple
+        ? 'Apple'
+        : (widget.auth.isGoogle ? 'Google' : 'cloud');
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.deepNavy,
         title: const Text('Sign out?'),
-        content: const Text(
-          'Your cloud save stays in your Google account. '
+        content: Text(
+          'Your cloud save stays in your $providerLabel account. '
           'This device will clear the local copy so another player\'s data '
           'cannot mix in.',
         ),
@@ -263,6 +266,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await _repo.flushPush();
     } catch (_) {}
     await widget.auth.signOut();
+    _repo.markSignedOut();
     await widget.scoreService.clearAllProgress();
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(

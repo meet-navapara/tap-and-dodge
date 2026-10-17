@@ -340,6 +340,21 @@ class AuthService {
     return current.reauthenticateWithCredential(oauthCredential);
   }
 
+  /// Fresh Google/Apple confirmation before destructive account actions.
+  Future<void> reauthenticateForSensitiveAction() async {
+    if (!firebaseReady || _auth == null) {
+      throw StateError('Firebase is not ready.');
+    }
+    if (_auth!.currentUser == null) {
+      throw StateError('Not signed in.');
+    }
+    if (providerKind == AuthProviderKind.apple) {
+      await reauthenticateWithApple();
+    } else {
+      await reauthenticateWithGoogle();
+    }
+  }
+
   /// Permanently deletes the Firebase Auth user. Call after cloud doc delete.
   Future<void> deleteFirebaseAuthUser() async {
     if (!firebaseReady || _auth == null) {
@@ -354,11 +369,7 @@ class AuthService {
       await current.delete();
     } on FirebaseAuthException catch (e) {
       if (e.code == 'requires-recent-login') {
-        if (providerKind == AuthProviderKind.apple) {
-          await reauthenticateWithApple();
-        } else {
-          await reauthenticateWithGoogle();
-        }
+        await reauthenticateForSensitiveAction();
         await _auth!.currentUser?.delete();
       } else {
         rethrow;

@@ -27,6 +27,9 @@ class AdMobService {
   Future<void>? _initFuture;
   Future<void>? _preloadFuture;
   Future<void> _loadChain = Future.value();
+  int _rewardedLoadGen = 0;
+  int _interstitialLoadGen = 0;
+  int _appOpenLoadGen = 0;
 
   RewardedAd? _rewardedAd;
   InterstitialAd? _interstitialAd;
@@ -64,6 +67,38 @@ class AdMobService {
     }
   }
 
+  bool _hasPlaceholder(String id) =>
+      id.contains('xxxx') || id.contains('yyyy') || id.contains('zzzz');
+
+  /// Soft-fail in release: never throw into UI taps.
+  bool _releaseAdsBlocked() {
+    if (!kReleaseMode) return false;
+    if (AdConfig.useTestAds) {
+      debugPrint(
+        'AdMob blocked: useTestAds=true in release. '
+        'Paste production IDs and set useTestAds=false before Play upload.',
+      );
+      return true;
+    }
+    final placeholders = [
+      AdConfig.productionAndroidAppId,
+      AdConfig.productionIosAppId,
+      AdConfig.productionRewardedUnitId,
+      AdConfig.productionIosRewardedUnitId,
+      AdConfig.productionInterstitialUnitId,
+      AdConfig.productionIosInterstitialUnitId,
+      AdConfig.productionAppOpenUnitId,
+      AdConfig.productionIosAppOpenUnitId,
+    ];
+    if (placeholders.any(_hasPlaceholder)) {
+      debugPrint(
+        'AdMob blocked: production unit IDs still contain placeholders.',
+      );
+      return true;
+    }
+    return false;
+  }
+
   Future<void> _doInitialize() async {
     if (_initialized) return;
     // google_mobile_ads is Android/iOS only — skip on Chrome/web.
@@ -72,27 +107,14 @@ class AdMobService {
       debugPrint('AdMob skipped on web');
       return;
     }
-    // Prevent shipping Google sample / test AdMob IDs in a Play release build.
-    if (kReleaseMode && AdConfig.useTestAds) {
-      throw StateError(
-        'AdConfig.useTestAds is true in a release build. '
-        'Paste production AdMob IDs and set useTestAds=false before Play upload.',
-      );
-    }
-    if (kReleaseMode &&
-        (AdConfig.productionAndroidAppId.contains('xxxx') ||
-            AdConfig.productionIosAppId.contains('xxxx') ||
-            AdConfig.productionRewardedUnitId.contains('xxxx') ||
-            AdConfig.productionIosRewardedUnitId.contains('xxxx'))) {
-      throw StateError(
-        'Production AdMob unit IDs are still placeholders. '
-        'Replace them in ad_config.dart before store upload.',
-      );
+    if (_releaseAdsBlocked()) {
+      // Leave _initialized=false so show* returns failedToLoad, not a crash.
+      return;
     }
     try {
       // UMP consent before Mobile Ads init (EEA/UK). Safe with test IDs.
       await consent.gatherConsent();
-      final canAds = await consent.canRequestAds;
+      var canAds = await consent.canRequestAds;
       debugPrint('AdMob canRequestAds=$canAds useTestAds=${AdConfig.useTestAds}');
 
       await MobileAds.instance.initialize();
@@ -109,21 +131,30 @@ class AdMobService {
         'AdMob initialized · rewarded=${AdConfig.rewardedUnitId}',
       );
 
-      // With Google test IDs, still preload even if UMP is undecided —
-      // otherwise rewarded taps race ahead of a cold SDK and never show.
       if (canAds || AdConfig.useTestAds) {
-        // WebView / JavascriptEngine is often not ready on cold start.
-        // MainActivity also warms WebView; still delay before first request.
         unawaited(() async {
-          // Give MainActivity WebView warmup a moment to boot Chromium.
           await Future<void>.delayed(const Duration(milliseconds: 800));
           await preloadAll();
         }());
       } else {
-        debugPrint('Ads not allowed by consent yet — skipping preload');
+        debugPrint('Ads not allowed by consent yet — will retry');
+        unawaited(_retryConsentThenPreload());
       }
     } catch (e, st) {
       debugPrint('AdMob init failed: $e\n$st');
+    }
+  }
+
+  Future<void> _retryConsentThenPreload() async {
+    for (var i = 0; i < 3; i++) {
+      await Future<void>.delayed(Duration(seconds: 2 + i));
+      await consent.gatherConsent(force: true);
+      final canAds = await consent.canRequestAds;
+      debugPrint('AdMob consent retry ${i + 1}: canRequestAds=$canAds');
+      if (canAds || AdConfig.useTestAds) {
+        await preloadAll();
+        return;
+      }
     }
   }
 
@@ -172,6 +203,7 @@ class AdMobService {
     if (_rewardedAd != null) return;
 
     for (var attempt = 0; attempt <= retries; attempt++) {
+      final gen = ++_rewardedLoadGen;
       final completer = Completer<(bool, LoadAdError?)>();
       try {
         await RewardedAd.load(
@@ -179,11 +211,16 @@ class AdMobService {
           request: const AdRequest(),
           rewardedAdLoadCallback: RewardedAdLoadCallback(
             onAdLoaded: (ad) {
+              if (gen != _rewardedLoadGen) {
+                ad.dispose();
+                return;
+              }
               _rewardedAd = ad;
               debugPrint('Rewarded ad loaded');
               if (!completer.isCompleted) completer.complete((true, null));
             },
             onAdFailedToLoad: (error) {
+              if (gen != _rewardedLoadGen) return;
               debugPrint(
                 'Rewarded failed (attempt ${attempt + 1}): '
                 '${error.code} ${error.message}',
@@ -201,6 +238,8 @@ class AdMobService {
       final result = await completer.future.timeout(
         const Duration(seconds: 15),
         onTimeout: () {
+          // Invalidate late callbacks from this attempt.
+          if (gen == _rewardedLoadGen) _rewardedLoadGen++;
           debugPrint('Rewarded load timed out');
           return (false, null);
         },
@@ -226,6 +265,7 @@ class AdMobService {
     if (_interstitialAd != null) return;
 
     for (var attempt = 0; attempt <= retries; attempt++) {
+      final gen = ++_interstitialLoadGen;
       final completer = Completer<(bool, LoadAdError?)>();
       try {
         await InterstitialAd.load(
@@ -233,11 +273,16 @@ class AdMobService {
           request: const AdRequest(),
           adLoadCallback: InterstitialAdLoadCallback(
             onAdLoaded: (ad) {
+              if (gen != _interstitialLoadGen) {
+                ad.dispose();
+                return;
+              }
               _interstitialAd = ad;
               debugPrint('Interstitial ad loaded');
               if (!completer.isCompleted) completer.complete((true, null));
             },
             onAdFailedToLoad: (error) {
+              if (gen != _interstitialLoadGen) return;
               debugPrint(
                 'Interstitial failed (attempt ${attempt + 1}): '
                 '${error.code} ${error.message}',
@@ -254,7 +299,10 @@ class AdMobService {
 
       final result = await completer.future.timeout(
         const Duration(seconds: 15),
-        onTimeout: () => (false, null),
+        onTimeout: () {
+          if (gen == _interstitialLoadGen) _interstitialLoadGen++;
+          return (false, null);
+        },
       );
       if (result.$1 || _interstitialAd != null) return;
       if (attempt < retries) {
@@ -277,6 +325,7 @@ class AdMobService {
     if (_appOpenAd != null) return;
 
     for (var attempt = 0; attempt <= retries; attempt++) {
+      final gen = ++_appOpenLoadGen;
       final completer = Completer<(bool, LoadAdError?)>();
       try {
         await AppOpenAd.load(
@@ -284,12 +333,17 @@ class AdMobService {
           request: const AdRequest(),
           adLoadCallback: AppOpenAdLoadCallback(
             onAdLoaded: (ad) {
+              if (gen != _appOpenLoadGen) {
+                ad.dispose();
+                return;
+              }
               _appOpenAd = ad;
               _appOpenLoadedAt = DateTime.now();
               debugPrint('AppOpen ad loaded');
               if (!completer.isCompleted) completer.complete((true, null));
             },
             onAdFailedToLoad: (error) {
+              if (gen != _appOpenLoadGen) return;
               debugPrint(
                 'AppOpen failed (attempt ${attempt + 1}): '
                 '${error.code} ${error.message}',
@@ -307,7 +361,10 @@ class AdMobService {
 
       final result = await completer.future.timeout(
         const Duration(seconds: 15),
-        onTimeout: () => (false, null),
+        onTimeout: () {
+          if (gen == _appOpenLoadGen) _appOpenLoadGen++;
+          return (false, null);
+        },
       );
       if (result.$1 || _appOpenAd != null) return;
       if (attempt < retries) {
